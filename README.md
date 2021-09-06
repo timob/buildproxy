@@ -1,7 +1,7 @@
 Build Proxy
 ===
 This cli command is used to rebuild source code while developing a local HTTP server.
-The configuration file path defaults to `~/.buildproxy.yaml`. It consists of an array of configuraion stanzas like:
+The configuration file path defaults to `~/.buildproxy.yaml`. It consists of an array of configuration stanzas like:
 ``` yaml
 - name: "hello"
   start_command: "./hello --listen=:6000"
