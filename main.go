@@ -22,10 +22,54 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+type CmdBlock struct {
+	Argv    []string `yaml:"argv"`
+	Env     []string `yaml:"env"`
+	WorkDir string   `yaml:"work_dir"`
+}
+
+func (c *CmdBlock) GetExecCmd() *exec.Cmd {
+	cwd, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+	cmd := &exec.Cmd{}
+	// Set CWD for new process by workdir if it's absolute, if it's relative then relative to CWD or CWD if not specified. 
+	if filepath.IsAbs(c.WorkDir) {
+		cmd.Dir = c.WorkDir
+	} else if c.WorkDir != "" {
+		cmd.Dir = filepath.Join(cwd, c.WorkDir)
+	} else {
+		cmd.Dir = cwd
+	}
+	cmd.Args = c.Argv
+	if len(cmd.Args) > 0 {
+		// Look for cmd.Args[0] in its full path, work dir or PATH ; and set cmd.Path.
+		if strings.Contains(cmd.Args[0], string(filepath.Separator)) {
+			cmd.Path = cmd.Args[0]
+		} else {
+			if _, err := os.Stat(filepath.Join(cmd.Dir, cmd.Args[0])); err == nil {
+				cmd.Path = filepath.Join(cmd.Dir, cmd.Args[0])
+			} else {
+				fullPth, err := exec.LookPath(cmd.Args[0])
+				if err == nil {
+					cmd.Path = fullPth
+				} else {
+					log.Fatal("ERROR: can't find executable " + cmd.Args[0])
+				}
+			}
+		}
+	}
+	cmd.Env = append(os.Environ(), c.Env...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd
+}
+
 type ConfigStanza struct {
 	Name           string   `yaml:"name"`
-	StartCommand   string   `yaml:"start_command"`
-	BuildCommand   string   `yaml:"build_command"`
+	StartCommand   CmdBlock `yaml:"start_command"`
+	BuildCommand   CmdBlock `yaml:"build_command"`
 	DestinationURL string   `yaml:"destination_url"`
 	ExcludePaths   []string `yaml:"exclude_paths"`
 	FileExtensions []string `yaml:"file_extensions"`
@@ -154,10 +198,7 @@ func main() {
 			}
 
 			log.Println("building...")
-			parts := strings.Split(stanza.BuildCommand, " ")
-			cmd := exec.Command(parts[0], parts[1:]...)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
+			cmd := stanza.BuildCommand.GetExecCmd()
 			err := cmd.Run()
 			if err != nil {
 				log.Println("error building: " + err.Error())
@@ -166,10 +207,7 @@ func main() {
 			}
 
 			log.Println("starting backend...")
-			parts = strings.Split(stanza.StartCommand, " ")
-			backend = exec.Command(parts[0], parts[1:]...)
-			backend.Stdout = os.Stdout
-			backend.Stderr = os.Stderr
+			backend = stanza.StartCommand.GetExecCmd()
 			err = backend.Start()
 			if err != nil {
 				log.Println("error starting backend: " + err.Error())
@@ -198,6 +236,7 @@ func main() {
 		}
 	}()
 
+	log.Println("INFO: listening on " + stanza.ListenAddress)
 	recv := <-c
 	log.Println("got signal " + recv.String())
 	if backend != nil && backend.Process != nil {
