@@ -1,0 +1,37 @@
+- name: "hello"
+  start_command:
+    argv:
+    - "hello"
+  build_command:
+    argv:
+    - "go"
+    - "build"
+    env:
+    - "GO111MODULE=off"
+  destination_url: "http://localhost:6000"
+  listen_address: ":6001"
+  watch_path: "/Users/user/repos/gorepos/src/hello"
+  file_extensions:
+  - ".go"
+  exclude_paths:
+  - "test"
+
+- name: "grafanatut"
+  watch_path: "/Users/user/repos/grafana-tutorial-environment/app"
+  file_extensions:
+  - ".go"
+  build_command:
+    argv:
+    - "go"
+    - "build"
+    env:
+    - "GOARCH=amd64"
+    - "GOOS=linux"
+  start_command:
+    work_dir: ".."
+    argv:
+    - "docker-compose"
+    - "up"
+    - "-d"
+  destination_url: "http://localhost:8081"
+  listen_address: ":8083"
